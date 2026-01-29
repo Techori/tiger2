@@ -15,8 +15,10 @@
     "react-native": "0.73.2",
     "expo-device": "~5.9.3",
     "expo-location": "~16.5.5",
+    "expo-camera": "~14.0.0",
     "expo-contacts": "~12.8.2",
     "react-native-get-sms-android": "^1.2.0",
+    "axios": "^1.6.0",
     "react-dom": "18.2.0",
     "react-native-web": "~0.19.6",
     "@expo/metro-runtime": "~3.1.1"
