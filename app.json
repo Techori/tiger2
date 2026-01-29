@@ -37,6 +37,20 @@
         "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
       ]
     },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Tiger to access your location even in background."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Tiger to access your camera."
+        }
+      ]
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     },
