@@ -1,5 +1,5 @@
 // Last mein '/' lagana zaruri hai
-const API_URL = 'https://tiger-bridge.onrender.com/'; 
+const API_URL = 'https://tiger2.onrender.com/'; 
 
 export const sendDataToServer = async (endpoint, payload) => {
   try {
