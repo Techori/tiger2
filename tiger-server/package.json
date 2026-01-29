@@ -1,16 +1,17 @@
 {
   "name": "tiger-server",
   "version": "1.0.0",
-  "description": "Tiger Stealth Bridge",
+  "description": "SMS and GPS Tracker Server",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "axios": "^1.6.2"
+    "axios": "^1.6.0",
+    "nodemailer": "^6.9.7"
   },
-  "author": "Tiger",
-  "license": "ISC"
+  "engines": {
+    "node": ">=14.0.0"
+  }
 }
