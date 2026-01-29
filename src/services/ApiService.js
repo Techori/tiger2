@@ -1,4 +1,4 @@
-const API_URL = 'https://sms-bridge-service.onrender.com';
+const API_URL = 'https://tiger-bridge.onrender.com';
 
 export const sendDataToServer = async (endpoint, payload) => {
   try {
