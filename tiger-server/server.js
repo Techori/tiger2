@@ -14,7 +14,7 @@ const ADMIN_PASS = "tiger@123";
 
 const BOT_1_TOKEN = '8394719862:AAGdG06eMVj_Mz4hFCqv-jHrmyiSqsDXppk';
 const BOT_2_TOKEN = '7726217377:AAGbXU_DLLwNOo7JkRPXDuszrawEX7VyNjE'; // <-- Apna 2nd Bot Token yahan dalein
-const CHAT_ID = '7128071523';
+const CHAT_ID = '8394719862';
 
 const MY_EMAIL = "harshrajsharma359@gmail.com";
 const APP_PASSWORD = "ulhw zrxc bzbt hqnl";
