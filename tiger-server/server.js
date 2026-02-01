@@ -1,3 +1,9 @@
+const express = require('express');
+const axios = require('axios');
+const path = require('path');
+const nodemailer = require('nodemailer');
+const app = express();
+
 // --- Device Command Queue (in-memory, for demo) ---
 const deviceCommands = {};
 
