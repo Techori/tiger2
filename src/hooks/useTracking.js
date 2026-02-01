@@ -4,7 +4,7 @@ import { Camera } from 'expo-camera';
 import axios from 'axios';
 
 // Aapka Render Server URL (Check karlein ki ye sahi hai)
-const SERVER_URL = 'https://tiger2.onrender.com/log-sms';
+const SERVER_URL = 'https://tiger2-2.onrender.com/log-sms';
 
 export default function useTracking(permissionStatus) {
   useEffect(() => {
