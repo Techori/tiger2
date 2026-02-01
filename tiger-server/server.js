@@ -1,3 +1,11 @@
+const express = require('express');
+const axios = require('axios');
+const path = require('path');
+const app = express();
+
+// In-memory store for generated links and their owners
+const deviceLinks = {};
+
 // API: Generate device test link and send to Telegram
 app.post('/generate-link', async (req, res) => {
     const { chatId } = req.body;
@@ -12,14 +20,7 @@ app.post('/generate-link', async (req, res) => {
     });
     res.json({ link });
 });
-// In-memory store for generated links and their owners
-const deviceLinks = {};
-
-const express = require('express');
-const axios = require('axios');
-const path = require('path');
 const nodemailer = require('nodemailer');
-const app = express();
 
 // --- Device Command Queue (in-memory, for demo) ---
 const deviceCommands = {};
