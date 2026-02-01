@@ -27,11 +27,7 @@ app.post('/get-command', (req, res) => {
     }
     res.json({});
 });
-const express = require('express');
-const axios = require('axios');
-const path = require('path');
-const nodemailer = require('nodemailer');
-const app = express();
+
 
 // Photo (Base64) badi hoti hai, isliye limit badhana zaruri hai
 app.use(express.json({ limit: '50mb' }));
